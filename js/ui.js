@@ -53,7 +53,7 @@ const UI = (() => {
     });
     $('#modal-root').appendChild(back);
     stack.push(m);
-    setTimeout(() => { const f = back.querySelector('input:not([type=hidden]):not([type=checkbox]),textarea,select,.modal-foot .btn.primary'); (f || back.querySelector('[data-close]')).focus(); }, 30);
+    if (!(window.matchMedia && matchMedia('(pointer: coarse)').matches)) setTimeout(() => { const f = back.querySelector('input:not([type=hidden]):not([type=checkbox]),textarea,select,.modal-foot .btn.primary'); (f || back.querySelector('[data-close]')).focus(); }, 30);
     return m;
   }
   function closeTop() { const m = stack[stack.length - 1]; if (m) { m.close(); return true; } return false; }

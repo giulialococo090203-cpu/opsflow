@@ -11,7 +11,7 @@
 
 /* ---------- COSTANTI ---------- */
 const C = {
-  APP_VERSION: '1.7.0',
+  APP_VERSION: '1.9.0',
   SCHEMA: 1,
   SOURCES: [
     { id: 'CORREZIONE_PROF', rank: 1, label: 'Correzione diretta del professore' },

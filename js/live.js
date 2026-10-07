@@ -105,7 +105,8 @@ const LiveReport = {
     Model.allBlocks().forEach(({ phase, block }) => { const s = this.sectionOf(phase, block); if (s) (map[s.id] = map[s.id] || []).push({ phase, block }); });
     return map;
   },
-  blockMd(b) {
+  blockMd(b0) {
+    const b = (typeof Translate !== 'undefined' && Translate.enabled()) ? Object.assign({}, b0, { title: Translate.en(b0, 'title'), content: Translate.en(b0, 'content'), caption: Translate.en(b0, 'caption') }) : b0;
     const lab = this.label(b.id);
     const cap = (l, t) => '*' + [l, t].filter(Boolean).join(': ') + '*';
     switch (b.type) {
@@ -141,7 +142,7 @@ const LiveReport = {
       const b = x.block, k = tk(b.title);
       const same = b.type === 'text' && k && (k === sk || k === prevT || (k.length > 5 && (sk.includes(k) || k.includes(sk))));
       if (['text', 'observation', 'interpretation'].includes(b.type)) prevT = k;
-      return (same ? U.str(b.content) : this.blockMd(b)) ;
+      return same ? (typeof Translate !== 'undefined' ? Translate.en(b, 'content') : U.str(b.content)) : this.blockMd(b);
     }).map((m, q) => { const b = items[q].block, intro = this.introSentence(b); return intro ? intro + '\n\n' + m : m; }).join('\n\n');
     if (/^(summary|sintesi|sommario|abstract)$/i.test(sec.title.trim())) { const sp = this.summaryProse(); md = sp + (md ? '\n\n' + md : ''); }
     if (/bibliograph|bibliografia|references/i.test(sec.title)) {
@@ -183,7 +184,7 @@ const LiveReport = {
   },
   /** testo effettivo: scritto da voi > bozza automatica > vuoto */
   effective(sec, assign) {
-    if (U.str(sec.content).trim()) return { md: sec.content, mode: 'manual' };
+    if (U.str(sec.content).trim()) return { md: typeof Translate !== 'undefined' ? Translate.en(sec, 'content') : sec.content, mode: 'manual' };
     const a = this.autoDraft(sec, assign);
     return a.md.trim() ? { md: a.md, mode: 'auto', count: a.count, unverified: a.unverified } : { md: '', mode: 'empty' };
   },
@@ -307,7 +308,8 @@ Views.report = {
         (!a.items.length && a.md.trim() ? '<p class="small muted mt-s">Testo composto con i dati del progetto (scheda progetto, fasi, risultati). I punti [To be completed] indicano cosa manca: completate la scheda progetto oppure scrivete qui.</p>' : '') +
         (a.items.length ? '<p class="small muted mt-s">Da: ' + a.items.map(x => '<button class="btn xs ghost" data-action="go" data-route="dev" data-id="' + x.phase.id + '" data-extra="' + x.block.id + '">' + U.esc(Model.blockLabel(x.block)) + '</button>').join(' ') + '</p>' : a.md.trim() ? '' : '<p class="small muted mt-s">Ancora niente per questa sezione. Si riempie quando nelle fasi caricate un file (o aggiungete un contenuto) che parla di questo tema. Intanto potete scriverla qui sotto o farla scrivere a Claude.</p>') +
         (a.md.trim() && U.str(cur.content).trim() ? '<details class="exp mt-s"><summary class="small">Vedi la bozza automatica</summary><div class="exp-body md">' + LiveReport.toHTML(a.md) + '</div></details>' : '') + '</section>';
-      h += '<section class="card"><div class="grid g2"><div class="field"><label for="sec-content">Il vostro testo ' + (e.mode === 'auto' ? '<span class="muted">(vuoto: nel documento si vede la bozza automatica)</span>' : '') + '</label><textarea id="sec-content" class="tall" style="min-height:420px" data-bind="report" data-id="' + cur.id + '" data-field="content" placeholder="Scrivete qui la sezione. **grassetto**, - elenchi, | tabelle |, $formule$">' + U.esc(cur.content) + '</textarea><span class="hint">' + U.words(U.stripMd(cur.content)) + ' parole · salvataggio automatico</span></div>' +
+      h += '<section class="card"><div class="grid g2"><div class="field"><label for="sec-content">Il vostro testo ' + (e.mode === 'auto' ? '<span class="muted">(vuoto: nel documento si vede la bozza automatica)</span>' : '') + '</label><textarea id="sec-content" class="tall" style="min-height:420px" data-bind="report" data-id="' + cur.id + '" data-field="content" placeholder="Scrivete qui la sezione. **grassetto**, - elenchi, | tabelle |, $formule$">' + U.esc(cur.content) + '</textarea><span class="hint">' + U.words(U.stripMd(cur.content)) + ' parole · salvataggio automatico' + (LiveReport.lang() === 'en' ? ' · ' + ({ done: '<span style="color:var(--ok)">🌐 tradotto in inglese ✓</span>', pending: '🌐 traduzione in inglese in corso…', none: '' }[Translate.state(cur, 'content')] || '') : '') + '</span>' +
+        (LiveReport.lang() === 'en' ? '<label class="check-line small mt-s"><input type="checkbox" data-change="set-autotranslate"' + ((Store.P.settings || {}).autoTranslate !== false ? ' checked' : '') + '><span>Scrivo in italiano: traduci automaticamente in inglese nella relazione</span></label>' : '') + '</div>' +
         '<div class="field"><span class="lbl">Come apparirà</span><div class="rep-preview md" data-preview="report" style="min-height:420px;max-height:none">' + LiveReport.toHTML(e.md) + '</div></div></div></section>';
     }
     h += '</div></div>';

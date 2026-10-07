@@ -163,8 +163,17 @@ const App = {
 };
 
 /* ---------- SIDEBAR MOBILE ---------- */
-function closeSidebar() { const s = UI.$('#sidebar'); if (s) s.classList.remove('open'); }
-Actions['toggle-sidebar'] = () => UI.$('#sidebar').classList.toggle('open');
+function closeSidebar() { const s = UI.$('#sidebar'); if (s) s.classList.remove('open'); document.body.classList.remove('nav-open'); }
+Actions['toggle-sidebar'] = () => { const open = UI.$('#sidebar').classList.toggle('open'); document.body.classList.toggle('nav-open', open); };
+/* telefono: il menu laterale si chiude toccando fuori, scegliendo una voce o cambiando pagina;
+   i menu a tendina (⋯, Altro) si chiudono toccando fuori o dopo aver scelto */
+document.addEventListener('click', e => {
+  const t = e.target;
+  if (t.closest && (t.closest('.sidebar-backdrop') || (t.closest('#nav a') && !t.closest('summary')))) closeSidebar();
+  document.querySelectorAll('details.menu[open]').forEach(d => { if (!d.contains(t) || (t.closest('.menu-pop') && t.closest('button,a') && !t.closest('label'))) d.removeAttribute('open'); });
+}, true);
+window.addEventListener('hashchange', closeSidebar);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeSidebar(); document.querySelectorAll('details.menu[open]').forEach(d => d.removeAttribute('open')); } });
 Actions['toggle-theme'] = async () => {
   const cur = document.documentElement.dataset.theme;
   Store.settings.theme = cur === 'dark' ? 'light' : 'dark';
