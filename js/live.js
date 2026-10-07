@@ -7,6 +7,8 @@
    - Esportazioni e stampa usano il testo "effettivo" di ogni sezione.
    ===================================================================== */
 'use strict';
+/* se translate.js non è (ancora) caricato, la relazione mostra il testo originale */
+if (typeof Translate === 'undefined') window.Translate = { enabled: () => false, state: () => 'none', en: (o, f) => U.str(o && o[f]), sweep() {}, schedule() {} };
 
 /* ---------- parole chiave delle sezioni: [titolo sezione, contenuti che ci vanno] ---------- */
 const SECTION_KEYS = [
