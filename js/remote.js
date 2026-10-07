@@ -96,28 +96,39 @@ const Team = (() => {
     return { doc: docRef, collection: collRef };
   }
 
-  /** file: salvati a pezzi da ~700 KB (testo base64) nella tabella ap_blobs */
+  /** file: nello spazio file privato "team-files" (cartella = codice del team), fino a 50 MB l'uno.
+      I file caricati con le versioni precedenti (tabella ap_blobs) restano leggibili. */
   function makeAssets(cfg) {
-    const PIECE = 700000;
-    const toB64 = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(blob); });
+    const base = () => cfg.url.replace(/\/+$/, '') + '/storage/v1/object/team-files/' + encodeURIComponent(cfg.code) + '/';
+    const headers = extra => { const h = Object.assign({ apikey: cfg.key }, extra || {}); if (/^eyJ/.test(cfg.key)) h.Authorization = 'Bearer ' + cfg.key; return h; };
+    async function legacy(id) {
+      const first = ((await rpc(cfg, 'ap_blob_get', { b: id, bi: 0 })) || [])[0];
+      if (!first) return null;
+      let s = first.data;
+      for (let i = 1; i < first.n; i++) { const r = ((await rpc(cfg, 'ap_blob_get', { b: id, bi: i })) || [])[0]; if (!r) return null; s += r.data; }
+      const bin = atob(s); const u = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+      return new Blob([u], { type: first.type || 'application/octet-stream' });
+    }
     return {
       acceptsAny: true,
+      maxBytes: 50 * 1024 * 1024,
       async upload(blob, opts = {}) {
-        const id = U.uid('blob');
-        const b64 = await toB64(blob);
-        const n = Math.max(1, Math.ceil(b64.length / PIECE));
-        for (let i = 0; i < n; i++) await rpc(cfg, 'ap_blob_put', { b: id, bi: i, bn: n, bt: opts.type || blob.type || 'application/octet-stream', bd: b64.slice(i * PIECE, (i + 1) * PIECE) });
-        return { id, url: '', sizeBytes: blob.size, contentType: opts.type || blob.type };
+        const id = 'st_' + U.uid('f');
+        const type = opts.type || blob.type || 'application/octet-stream';
+        let res;
+        try { res = await fetch(base() + id, { method: 'POST', headers: headers({ 'Content-Type': type, 'x-upsert': 'true' }), body: blob }); }
+        catch (e) { const err = new Error('Server del team non raggiungibile'); err.code = 'unavailable'; throw err; }
+        if (!res.ok) { const t = await res.text(); const err = new Error(/exceeded|too large|maximum/i.test(t) ? 'file oltre 50 MB' : t.slice(0, 160)); err.code = res.status === 413 || /exceeded|too large/i.test(t) ? 'too_large' : 'upload_failed'; throw err; }
+        return { id, url: '', sizeBytes: blob.size, contentType: type };
       },
       async fetchBlob(id) {
-        const first = ((await rpc(cfg, 'ap_blob_get', { b: id, bi: 0 })) || [])[0];
-        if (!first) return null;
-        let s = first.data;
-        for (let i = 1; i < first.n; i++) { const r = ((await rpc(cfg, 'ap_blob_get', { b: id, bi: i })) || [])[0]; if (!r) return null; s += r.data; }
-        const bin = atob(s); const u = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
-        return new Blob([u], { type: first.type || 'application/octet-stream' });
-      }
+        if (!/^st_/.test(id)) return legacy(id);
+        const res = await fetch(base() + id, { headers: headers() });
+        if (!res.ok) return null;
+        return res.blob();
+      },
+      async remove(id) { if (/^st_/.test(id)) await fetch(base() + id, { method: 'DELETE', headers: headers() }).catch(() => {}); }
     };
   }
 

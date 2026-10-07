@@ -291,10 +291,12 @@ const Sync = (() => {
     try {
       let blob = rec.blob, type = (blob.type || rec.type || '').split(';')[0], enc = '';
       if (!assets.acceptsAny && !DIRECT.test(type)) { blob = new Blob([await toB64(rec.blob)], { type: 'text/plain' }); type = 'text/plain'; enc = 'b64'; }
-      if (blob.size > 20 * 1024 * 1024) { UI.toast('"' + rec.name + '" è troppo grande per essere condiviso (max circa 15 MB): resta solo su questo computer.', 'err'); return; }
+      const maxB = assets.maxBytes || 20 * 1024 * 1024;
+      if (blob.size > maxB) { UI.toast('"' + rec.name + '" è troppo grande per essere condiviso (massimo ' + Math.round(maxB / 1048576) + ' MB): resta solo su questo computer. Comprimi il PDF e ricaricalo.', 'err'); return; }
+      UI.toast('Carico "' + rec.name + '" (' + U.fileSize(blob.size) + ') per il team…');
       const r = await assets.upload(blob, { type });
       meta = U.arr(Store.P.files).find(f => f.id === rec.id);
-      if (meta) { meta.remote = { asset: r.id, enc, type: rec.type || rec.blob.type || '' }; Store.touch(); }
+      if (meta) { meta.remote = { asset: r.id, enc, type: rec.type || rec.blob.type || '' }; Store.touch(); if (blob.size > 2 * 1024 * 1024) UI.toast('"' + rec.name + '" condiviso con il team'); }
     } catch (e) {
       console.warn('Upload', e);
       UI.toast('File "' + rec.name + '" non condiviso (' + ((e && e.code) || 'errore') + ').', 'err');
