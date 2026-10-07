@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Assistente Progetto">
-<link rel="stylesheet" href="style.css?v=180">
+<link rel="stylesheet" href="style.css?v=190">
 <!-- Librerie esterne opzionali: se offline l'app funziona comunque (formule mostrate come testo LaTeX, grafici come tabella dati) -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
@@ -22,6 +22,7 @@
 
 <div class="app" id="app">
   <!-- ============ SIDEBAR ============ -->
+  <div class="sidebar-backdrop" aria-hidden="true"></div>
   <aside class="sidebar" id="sidebar" aria-label="Navigazione principale">
     <div class="brand">
       <div class="brand-mark" aria-hidden="true">AP</div>
@@ -52,6 +53,7 @@
       <button class="btn sm hide-sm adv" data-action="question-quick" data-tip="Aggiungi alle domande per il professore">＋ Domanda prof.</button>
       <button class="btn sm icon" data-action="toggle-theme" aria-label="Cambia tema chiaro/scuro" data-tip="Tema chiaro/scuro"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg></button>
       <div class="save-status" id="save-status" role="status" aria-live="polite"></div>
+      <div class="sync-status" id="tr-status" hidden></div>
       <div class="sync-status" id="sync-status" role="status" aria-live="polite" hidden></div>
     </header>
     <main class="content" id="view" tabindex="-1"></main>
@@ -64,21 +66,22 @@
 <input type="file" id="hidden-file" hidden>
 
 <!-- Script applicazione (script classici, niente moduli: funziona anche aprendo il file con doppio click) -->
-<script src="js/utils.js?v=180"></script>
-<script src="js/db.js?v=180"></script>
-<script src="js/state.js?v=180"></script>
-<script src="js/checker.js?v=180"></script>
-<script src="js/ai.js?v=180"></script>
-<script src="js/demo.js?v=180"></script>
-<script src="js/ui.js?v=180"></script>
-<script src="js/views.js?v=180"></script>
-<script src="js/views2.js?v=180"></script>
-<script src="js/extract.js?v=180"></script>
-<script src="js/upload.js?v=180"></script>
-<script src="js/live.js?v=180"></script>
-<script src="js/docx.js?v=180"></script>
-<script src="js/remote.js?v=180"></script>
-<script src="js/sync.js?v=180"></script>
-<script src="js/app.js?v=180"></script>
+<script src="js/utils.js?v=190"></script>
+<script src="js/db.js?v=190"></script>
+<script src="js/state.js?v=190"></script>
+<script src="js/checker.js?v=190"></script>
+<script src="js/ai.js?v=190"></script>
+<script src="js/demo.js?v=190"></script>
+<script src="js/ui.js?v=190"></script>
+<script src="js/views.js?v=190"></script>
+<script src="js/views2.js?v=190"></script>
+<script src="js/extract.js?v=190"></script>
+<script src="js/upload.js?v=190"></script>
+<script src="js/live.js?v=190"></script>
+<script src="js/translate.js?v=190"></script>
+<script src="js/docx.js?v=190"></script>
+<script src="js/remote.js?v=190"></script>
+<script src="js/sync.js?v=190"></script>
+<script src="js/app.js?v=190"></script>
 </body>
 </html>
