@@ -3,7 +3,7 @@
      la copia salvata solo se si è offline.
    - Librerie CDN (KaTeX, Chart.js): copia salvata, aggiornata in background.
    I dati dell'utente NON passano di qui. */
-const CACHE_VERSION = 'ap-v2.0.0';
+const CACHE_VERSION = 'ap-v2.0.1';
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE_VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim()));

@@ -574,3 +574,20 @@ img,video{max-width:100%;height:auto}
   .rep-nav>button.lv2,.rep-nav>button.lv3{padding-left:12px}
   .head-actions,.page-head .btn-group{width:100%}
 }
+
+/* ---------- 13. PARAMETRI DEL CORSO (v2.0) ---------- */
+.pg-card summary{list-style:none;cursor:pointer}
+.pg-card summary::-webkit-details-marker{display:none}
+.pg-card h4{margin:0}
+.pg-row{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(80px,1fr) auto minmax(0,1fr);gap:10px;align-items:center;padding:4px 0;border-bottom:1px dashed var(--line)}
+.pg-row:last-of-type{border-bottom:0}
+.pg-val.risk{color:var(--risk);font-weight:700}
+.pg-val.ok{color:var(--ok)}
+.course-card summary{cursor:pointer}
+.course-rules{list-style:none;padding:0;margin:0;display:grid;gap:6px}
+.course-rules li{display:flex;gap:8px;align-items:flex-start;font-size:.9em}
+.course-rules li span{flex:0 0 1.4em;text-align:center}
+@media (max-width:700px){
+  .pg-row{grid-template-columns:minmax(0,1fr) auto;row-gap:2px}
+  .pg-row .progress,.pg-row .pg-note{grid-column:1 / -1}
+}
