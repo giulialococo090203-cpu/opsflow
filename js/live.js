@@ -20,7 +20,7 @@ const SECTION_KEYS = [
   [/plan of attack|piano/, /plan of attack|piano di lavoro|piano d.attacco/],
   [/software/, /software|bizagi|\bvisio\b|gestionale/],
   [/critical|critic/, /critical|critic|criticit|bottleneck|collo di bottiglia|problemi del processo|issues/],
-  [/re-?engineering|to-?be solution/, /re-?engineering|to-?be solution|soluzione to-?be|proposta|improvement|miglioramento/],
+  [/re-?engineering|to-?be solution|to-?be redesign|process improvement/, /re-?engineering|to-?be solution|soluzione to-?be|proposta|improvement|miglioramento/],
   [/as-?is vs|comparison|confronto/, /confronto|comparison|compare means|as-?is vs|as is vs/],
   [/sensitiv|sensibilit/, /sensitiv|sensibilit/],
   [/conclus/, /conclus/],
@@ -29,7 +29,7 @@ const SECTION_KEYS = [
 const MODEL_KEYS = [['idef0', /idef0|idef-0|nodo a-?0|node a-?0|context diagram/], ['bpmn', /bpmn|bizagi/], ['uml', /\buml\b|use case|activity diagram|diagramma dei casi|diagramma delle attivit/], ['arena', /arena|simulaz|simulation|output analyzer|run setup|create module|process module/]];
 
 const LiveReport = {
-  lang() { return Store.P.report.sections.some(s => /^(summary|conclusions|bibliography|the bpm project)$/i.test(s.title)) ? 'en' : 'it'; },
+  lang() { return Store.P.report.sections.some(s => /^(summary|conclusions|bibliography|references|the bpm project)$/i.test(s.title)) ? 'en' : 'it'; },
   /** numerazione gerarchica: 1. / 1.1. / 2.4.1. */
   numbers(list) {
     const out = {}, c = [0, 0, 0];
@@ -69,7 +69,7 @@ const LiveReport = {
     const ownT = U.norm([b.title, b.name, b.caption].filter(Boolean).join(' '));
     if (/^d1\b/.test(U.norm(phase.title || '')) || /^(team\b|shortlist|deliverable\s*#?\s*1\b|note sul deliverable)/.test(ownT)) return null;
     const all = Store.P.report.sections.slice().sort((x, y) => x.order - y.order);
-    const secs = all.filter((t, k) => !(t.level === 1 && all[k + 1] && all[k + 1].level > 1 && !U.str(t.content).trim()) || /summary|conclus|bibliog|appendix/i.test(t.title));
+    const secs = all.filter((t, k) => !((t.level || 1) < 3 && all[k + 1] && (all[k + 1].level || 1) > (t.level || 1) && !U.str(t.content).trim()) || /summary|conclus|bibliog|references|appendix/i.test(t.title));
     const txt = U.norm([b.title, b.name, b.caption, b.resultName].filter(Boolean).join(' '));
     const own = U.norm([b.title, b.name, b.caption, b.resultName].filter(Boolean).join(' '));
     const tobe = /to-?be/.test(own) || (!/as-?is/.test(own) && /to-?be/.test(U.norm(phase.title)));
@@ -286,7 +286,7 @@ Views.report = {
       '<button class="btn primary" data-action="report-docx">Scarica Word (formato D4)</button><button class="btn adv" data-action="report-prompt">Fai scrivere a Claude</button><button class="btn simple-only" data-action="simple-info">Dati copertina</button><button class="btn" data-action="report-print">Stampa / PDF</button>');
     h += '<div class="card mb"><div class="row between"><div class="row"><span class="sec-ico ok">●</span><span class="small">' + st.manual + ' scritte</span><span class="sec-ico auto">◐</span><span class="small">' + st.auto + ' bozza automatica</span><span class="sec-ico">○</span><span class="small">' + st.empty.length + ' vuote</span><span class="small muted">· ' + st.words + ' parole</span></div>' +
       '<div class="btn-group adv">' + (repIssues.length ? '<button class="btn sm" data-action="report-issues" style="color:var(--warn)">⚠ ' + repIssues.length + ' da verificare</button>' : '') + '<button class="btn sm" data-action="checker-run-report">Controlla coerenza</button>' +
-      '<details class="menu"><summary class="btn sm">Altro ▾</summary><div class="menu-pop"><button class="btn sm ghost" data-action="claude-import" data-kind="report">Importa testo da Claude</button><button class="btn sm ghost" data-action="upload" data-kind="report" data-accept=".pdf,.docx,.txt,.md">Importa bozza da file</button><button class="btn sm ghost" data-action="report-cover">Modifica copertina</button><button class="btn sm ghost" data-action="report-export" data-fmt="md">Scarica Markdown</button><button class="btn sm ghost" data-action="report-export" data-fmt="html">Scarica HTML</button><button class="btn sm ghost" data-action="report-snapshot">Salva una versione</button><button class="btn sm ghost" data-action="report-d4-structure">Applica formato D4</button><button class="btn sm ghost" data-action="report-from-examples">Sezioni ricorrenti negli esempi</button><button class="btn sm ghost" data-action="report-sec-add">Aggiungi sezione</button></div></details></div></div></div>';
+      '<details class="menu"><summary class="btn sm">Altro ▾</summary><div class="menu-pop"><button class="btn sm ghost" data-action="claude-import" data-kind="report">Importa testo da Claude</button><button class="btn sm ghost" data-action="upload" data-kind="report" data-accept=".pdf,.docx,.txt,.md">Importa bozza da file</button><button class="btn sm ghost" data-action="report-cover">Modifica copertina</button><button class="btn sm ghost" data-action="report-export" data-fmt="md">Scarica Markdown</button><button class="btn sm ghost" data-action="report-export" data-fmt="html">Scarica HTML</button><button class="btn sm ghost" data-action="report-snapshot">Salva una versione</button><button class="btn sm ghost" data-action="course-apply">Applica formato del corso (Lesson 0)</button><button class="btn sm ghost" data-action="report-from-examples">Sezioni ricorrenti negli esempi</button><button class="btn sm ghost" data-action="report-sec-add">Aggiungi sezione</button></div></details></div></div></div>';
     h += '<div class="rep-layout"><nav class="rep-nav" aria-label="Sezioni della relazione"><button class="' + (!cur ? 'active' : '') + '" data-action="report-doc"><b>📄 Documento completo</b></button>' +
       secs.map(s => { const e = LiveReport.effective(s, assign); const inc = planIds.has(s.id); return '<button class="lv' + (s.level || 1) + (cur && s.id === cur.id ? ' active' : '') + (inc ? '' : ' omitted') + '" data-action="go" data-route="report" data-id="' + s.id + '" title="' + (inc ? '' : 'Facoltativa e vuota: non verrà inclusa') + '"><span>' + icon(e) + ' ' + (nums[s.id] ? '<span class="secnum">' + nums[s.id] + '</span> ' : '') + U.esc(s.title) + '</span>' + (e.mode === 'auto' ? '<span class="tiny muted">' + e.count + '</span>' : '') + '</button>'; }).join('') + '</nav><div class="stack">';
     if (!cur) {

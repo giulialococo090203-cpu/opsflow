@@ -253,9 +253,11 @@ Actions['report-docx'] = async () => {
   try {
     const { blob, stats } = await Docx.build();
     const P = Store.P;
-    U.download(U.slug(P.info.teamName || P.info.name) + '-relazione-' + U.todayISO() + '.docx', blob);
+    const isB = typeof Course !== 'undefined' && Course.isBpm(), dn = isB ? Course.nextDeliverable() : 0;
+    U.download(isB ? Course.team() + '_D' + dn + '.docx' : U.slug(P.info.teamName || P.info.name) + '-relazione-' + U.todayISO() + '.docx', blob);
     History.log('Esportata relazione Word (' + stats.sections + ' sezioni, ' + stats.figures + ' figure, ' + stats.tables + ' tabelle)', 'report');
     Store.touch();
-    UI.toast('Word scaricato: ' + stats.sections + ' sezioni, ' + stats.figures + ' figure, ' + stats.tables + ' tabelle. All\'apertura Word chiede di aggiornare i campi: rispondi Sì per i numeri di pagina dell\'indice.');
+    UI.toast('Word scaricato: ' + stats.sections + ' sezioni, ' + stats.figures + ' figure, ' + stats.tables + ' tabelle. All\'apertura Word chiede di aggiornare i campi: rispondi Sì per i numeri di pagina dell\'indice.' + (isB && dn > 1 ? ' Per la consegna salvatelo in PDF come ' + Course.fileName(dn) + ' e caricatelo su MS Teams.' : ''));
+    if (isB) { const pg = Course.pages().total; if (pg > Course.MAX_PAGES) UI.toast('Attenzione: circa ' + Math.round(pg) + ' pagine stimate, il massimo è ' + Course.MAX_PAGES + '. Controllate il numero esatto nel Word.', 'err'); }
   } catch (e) { console.error(e); UI.toast('Esportazione Word non riuscita: ' + e.message, 'err'); }
 };

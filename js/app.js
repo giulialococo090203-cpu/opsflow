@@ -535,6 +535,7 @@ async function start() {
   if (MEM_ROUTE) { if (!memHash && Store.P) memHash = '#/dashboard'; }
   else if (!location.hash && Store.P) location.replace('#/dashboard');
   App.render();
+  if (typeof Course !== 'undefined') Course.maybeOffer();
   const ops = Store.index.find(p => /OpsFlow/.test(p.name));
   // la versione del preset è salvata nel progetto (condiviso), non nel browser
   if (Store.P && /OpsFlow/.test(Store.P.info.name) && !Store.P.presetVersion && Store.P.report.sections.some(s => s.title === 'The BPM project') && (Store.settings.bpmPresetVersion || 0) >= (window.BPM_PRESET_VERSION || 1)) { Store.P.presetVersion = window.BPM_PRESET_VERSION; Store.touch(); }

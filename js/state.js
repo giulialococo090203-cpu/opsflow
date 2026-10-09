@@ -11,7 +11,7 @@
 
 /* ---------- COSTANTI ---------- */
 const C = {
-  APP_VERSION: '1.9.0',
+  APP_VERSION: '2.0.0',
   SCHEMA: 1,
   SOURCES: [
     { id: 'CORREZIONE_PROF', rank: 1, label: 'Correzione diretta del professore' },
@@ -61,31 +61,32 @@ const C = {
   /* Struttura della relazione ricavata dai D4 degli anni precedenti (InGenius, Don't Let Me Manage!, 3MG).
      [titolo, livello (1-3), numerata, obbligatoria, nota, vecchi titoli equivalenti] */
   D4_REPORT: [
-    ['Summary', 1, false, true, 'Prima del capitolo 1 (InGenius, Don\'t Let Me Manage!). Racconta il semestre: scelta dell\'azienda e motivazioni, incontri con il referente, processo scelto, problema principale, soluzione TO-BE e risultati.', ['sintesi', 'sommario', 'abstract', 'introduzione']],
-    ['The company and its business processes', 1, true, false, 'Capitolo 1. Le sottosezioni contengono il dettaglio.', []],
+    ['Summary', 1, false, true, '2 pagine. Prima del capitolo 1 (InGenius, Don\'t Let Me Manage!). Racconta il semestre: scelta dell\'azienda e motivazioni, incontri con il referente, processo scelto, problema principale, soluzione TO-BE e risultati.', ['sintesi', 'sommario', 'abstract', 'introduzione']],
+    ['The company and its business processes', 1, true, false, 'Capitolo 1 (5–6 pagine). Le sottosezioni contengono il dettaglio.', []],
     ['General characteristics', 2, true, true, 'Storia dell\'azienda, organizzazione/organigramma (figura), prodotti/servizi, mercato e concorrenti, indici finanziari (ROI, ROE, ROS…).', ['the company and its business processes', 'company description']],
     ['Supply chain analysis', 2, true, true, 'Supply chain, fornitori, clienti, logistica.', []],
     ['Main company\'s business processes (Value chain)', 2, true, true, 'Value chain di Porter: attività primarie e di supporto, con figura (metodo dell\'Esercitazione 1).', ['value chain', 'company process analysis (value chain)']],
-    ['The BPM project', 1, true, false, 'Capitolo 2.', []],
-    ['Overview of the specific process', 2, true, true, 'Processo scelto, fasi del processo, problema riscontrato, KPI di processo (eventuale SIPOC, Esercitazione 2).', ['process description and performance indicators', 'process analysis']],
-    ['Plan of attack', 2, true, true, 'Obiettivo, piano di lavoro e motivazioni.', []],
-    ['Software description', 2, true, false, 'Software usati (es. Bizagi, Arena, gestionale dell\'azienda) e motivazioni.', ['software', 'software description']],
-    ['AS-IS mapping and modelling', 2, true, false, 'Introduzione breve alla modellazione AS-IS.', []],
+    ['The BPM project', 1, true, false, 'Capitolo 2 (25–30 pagine). Secondo le linee guida del corso copre: 2.1 processo e sistema · 2.2 mappatura e modellazione · 2.3 analisi quantitativa · 2.4 fattori critici · 2.5 miglioramento / TO-BE.', []],
+    ['The process and the system', 2, true, false, 'Sezione 2.1 delle linee guida: il processo scelto e il sistema in cui si svolge (organizzazione, informazioni, software).', []],
+    ['Overview of the specific process', 3, true, true, 'Processo scelto, fasi del processo, problema riscontrato, KPI di processo (eventuale SIPOC, Esercitazione 2).', ['process description and performance indicators', 'process analysis']],
+    ['Plan of attack', 3, true, true, 'Obiettivo, piano di lavoro e motivazioni.', []],
+    ['Software description', 3, true, false, 'Software usati (es. Bizagi, Arena, gestionale dell\'azienda) e motivazioni.', ['software', 'software description']],
+    ['Process mapping and modelling', 2, true, false, 'Sezione 2.2 delle linee guida: modellazione AS-IS del processo.', ['as-is mapping and modelling']],
     ['AS-IS modelling in IDEF0', 3, true, true, 'Context diagram (A-0), nodo A0 e scomposizioni; contesto, obiettivo e punto di vista della modellazione; input, output, controlli e meccanismi.', []],
     ['AS-IS modelling in BPMN', 3, true, true, 'Diagramma BPMN (es. Bizagi) con pool/lane e descrizione del flusso.', []],
     ['AS-IS modelling in UML', 3, true, true, 'Use case diagram e activity diagram, con descrizione.', []],
-    ['Quantitative analysis of the AS-IS process in Arena', 2, true, true, 'Modello Arena: moduli (Create, Process, Decide…), parametri e distribuzioni, run setup, output analyzer.', ['as-is quantitative analysis and simulation (arena)', 'quantitative analysis as-is in arena']],
-    ['Analysis of the critical issues', 2, true, true, 'Criticità del processo AS-IS, cause, proposte di miglioramento.', ['critical analysis', 'analysis of critical issues and improvements']],
-    ['Process re-engineering: TO-BE solution', 2, true, false, 'Descrizione della soluzione TO-BE proposta.', ['to-be process']],
+    ['Quantitative analysis of the AS-IS process in Arena', 2, true, true, 'Sezione 2.3 delle linee guida. Modello Arena: moduli (Create, Process, Decide…), parametri e distribuzioni, run setup, output analyzer.', ['as-is quantitative analysis and simulation (arena)', 'quantitative analysis as-is in arena', 'quantitative analysis']],
+    ['Analysis of the critical factors', 2, true, true, 'Sezione 2.4 delle linee guida: fattori critici del processo AS-IS, cause, proposte di miglioramento.', ['analysis of the critical issues', 'critical analysis', 'analysis of critical issues and improvements', 'critical factors']],
+    ['Process improvement: TO-BE redesign', 2, true, false, 'Sezione 2.5 delle linee guida: soluzione TO-BE proposta e confronto con l\'AS-IS.', ['process re-engineering: to-be solution', 'to-be process']],
     ['TO-BE modelling in IDEF0', 3, true, true, '', []],
     ['TO-BE modelling in BPMN', 3, true, true, '', []],
     ['TO-BE modelling in UML', 3, true, true, '', []],
     ['Quantitative analysis of the TO-BE process in Arena', 3, true, true, 'Modello Arena TO-BE e output.', ['to-be quantitative analysis and simulation (arena)', 'quantitative analysis to-be in arena']],
-    ['AS-IS vs TO-BE comparison', 2, true, true, 'Confronto dei KPI AS-IS/TO-BE, compare means.', ['kpi comparison between as-is and to-be models']],
-    ['Sensitivity analysis', 2, true, true, '', []],
-    ['Conclusions', 1, true, true, 'Capitolo 3. Risultati ottenuti, benefici per l\'azienda, limiti e sviluppi futuri.', ['conclusion', 'conclusioni']],
-    ['Bibliography', 1, false, true, 'Fonti citate (siti, libri, documenti aziendali).', ['bibliografia', 'references']],
-    ['Appendix', 1, false, false, 'Figure di dettaglio (moduli Arena, nodi IDEF0).', ['appendice', 'allegati']]
+    ['AS-IS vs TO-BE comparison', 3, true, true, 'Confronto dei KPI AS-IS/TO-BE, compare means.', ['kpi comparison between as-is and to-be models']],
+    ['Sensitivity analysis', 3, true, true, '', []],
+    ['Conclusions', 1, true, true, 'Capitolo 3 (1–2 pagine). Risultati ottenuti, benefici per l\'azienda, limiti e sviluppi futuri.', ['conclusion', 'conclusioni']],
+    ['References', 1, false, true, 'Elenco completo dei riferimenti: ogni articolo citato nel testo deve comparire qui, e ogni voce qui deve essere citata nel testo.', ['bibliography', 'bibliografia', 'references']],
+    ['Appendix', 1, false, false, 'Solo diagrammi NON citati nel testo (es. moduli Arena, nodi IDEF0 di dettaglio). Le figure citate nel testo vanno nel capitolo.', ['appendice', 'allegati']]
   ],
   CUSTOM_RULE_TYPES: [
     { id: 'chart-axis-units', label: 'Ogni grafico deve indicare titolo e unità degli assi', params: [] },

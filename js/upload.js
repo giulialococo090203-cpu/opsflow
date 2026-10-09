@@ -239,7 +239,7 @@ const Uploader = (() => {
   /* ---------- struttura della relazione dagli esempi ---------- */
   async function applyD4Structure(silent = false) {
     const P = Store.P;
-    if (!silent && !(await UI.confirm('Applicare il formato dei D4 degli anni precedenti?\n\nCapitoli numerati (1. The company… 2. The BPM project… 3. Conclusions) con sottosezioni 1.1, 2.4.1…\nIl testo già scritto viene mantenuto e spostato nella sezione corrispondente; prima viene salvata una versione della relazione.', { okLabel: 'Applica formato D4' }))) return;
+    if (!silent && !(await UI.confirm('Applicare il formato della relazione finale (linee guida del corso + D4 degli anni precedenti)?\n\nCapitoli numerati (1. The company… 2. The BPM project con 2.1–2.5… 3. Conclusions) con sottosezioni 1.1, 2.2.1…\nIl testo già scritto viene mantenuto e spostato nella sezione corrispondente; prima viene salvata una versione della relazione.', { okLabel: 'Applica formato D4' }))) return;
     P.report.snapshots = U.arr(P.report.snapshots);
     P.report.snapshots.unshift({ at: U.nowISO(), label: 'Prima del formato D4', words: Metrics.reportProgress().words, title: P.report.title, sections: U.clone(P.report.sections) });
     const old = P.report.sections.slice();
