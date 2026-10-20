@@ -13,7 +13,7 @@ if (typeof Translate === 'undefined') window.Translate = { enabled: () => false,
 /* ---------- parole chiave delle sezioni: [titolo sezione, contenuti che ci vanno] ---------- */
 const SECTION_KEYS = [
   [/^(summary|sintesi|sommario|abstract)$/, /\bsummary\b|\bsintesi\b|\babstract\b/],
-  [/general characteristics|company description|the company and its business processes|caratteristiche generali/, /\bcompany\b|azienda|aziendal|storia|history|organigram|organi[sz]ation|organizzaz|mercato|market|competitor|concorrent|financial|finanz|bilanci|prodott|products|services|servizi|indici|ratios?\b/],
+  [/general characteristics|company description|the company and its business processes|caratteristiche generali/, /\bcompany\b|azienda|aziendal|storia|history|organigram|organi[sz]ation|organizzaz|mercato|market|competitor|concorrent|financial|finanz|bilanci|business performance|revenue|fatturato|profit\b|utile netto|prodott|products|services|servizi|indici|ratios?\b/],
   [/supply chain/, /supply chain|fornitor|supplier|clienti\b|customers?\b|logistic/],
   [/value chain|catena del valore/, /value chain|catena del valore|primary activit|support activit|porter/],
   [/overview of the specific process|process description|descrizione del processo|process analysis/, /process description|descrizione del processo|fasi del processo|process phases|overview|\bkpi\b|indicator|performance|sipoc|lead time|cycle time|tempo di ciclo|problem/],
