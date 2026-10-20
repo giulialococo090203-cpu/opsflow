@@ -84,6 +84,7 @@ const Uploader = (() => {
         catch (e) { UI.toast(it.file.name + ': ' + e.message, 'err'); }
       }
       Store.touch();
+      if (done.length && typeof Course !== 'undefined' && Course.recheck) setTimeout(Course.recheck, 300);   // aggiorna gli errori segnalati
       App.renderNav();
       if (done.length) UI.toast(done.join(' · '));
       if (next) next(); else App.refresh();

@@ -282,3 +282,30 @@ Actions['course-apply'] = async () => {
   if (!(await UI.confirm('Applicare i parametri del corso (Lesson 0)?\n\nCapitolo 2 come 2.1–2.5, pagine per sezione, consegne con formato e nome del file, regole e controlli. Il testo già scritto resta; prima viene salvata una versione della relazione.', { okLabel: 'Applica' }))) return;
   await Course.apply(false);
 };
+
+/* ---------- sezioni obbligatorie: si segnalano solo quelle della prossima consegna ----------
+   D2 = idea, plan of attack, azienda e processo (capitolo 1 + 2.1); dal D3 (bozza quasi completa) tutte. */
+Course.D2_SCOPE = /general characteristics|supply chain|value chain|overview of the specific process|plan of attack/;
+(() => {
+  const r = typeof Checker !== 'undefined' && Checker.RULES.find(x => x.id === 'report-required');
+  if (!r) return;
+  const orig = r.run;
+  r.run = function (ctx) {
+    const out = orig.call(this, ctx);
+    if (!Course.isBpm(ctx.P)) return out;
+    const n = Course.nextDeliverable(), D = Course.DELIVERABLES.find(x => x.n === n);
+    const secOf = f => ctx.P.report.sections.find(x => x.id === f.key);
+    const keep = n <= 2 ? out.filter(f => { const s = secOf(f); return s && Course.D2_SCOPE.test(U.norm(s.title)); }) : out;
+    return keep.map(f => Object.assign(f, { reason: 'Parte richiesta per il D' + n + (D ? ' (' + U.fmtDate(D.due) + ')' : '') + '. Si riempie caricando nella fase il PDF/Word che la contiene, oppure scrivendola.' }));
+  };
+})();
+/* i controlli si aggiornano da soli: all'avvio e dopo ogni caricamento di file */
+Course.recheck = (onlyIfChanged) => {
+  try {
+    const P = Store.P;
+    if (!P || !(P.checker.lastRunAt || P.issues.length)) return;            // controlli mai usati: non si avviano da soli
+    if (onlyIfChanged && P.checker.lastRunAt && Date.parse(P.updatedAt) - Date.parse(P.checker.lastRunAt) < 30000) return;   // nulla di nuovo dall'ultimo controllo
+    Checker.run(); App.refresh();
+  } catch (e) { console.error(e); }
+};
+Course.maybeOffer = (orig => function () { setTimeout(() => Course.recheck(true), 2500); return orig.apply(this, arguments); })(Course.maybeOffer);
