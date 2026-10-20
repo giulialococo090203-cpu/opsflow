@@ -191,7 +191,7 @@ const Extract = (() => {
     if (root) { const pr = refOf(root.dict, 'Pages'); if (pr !== null) walk(pr, ''); }
     if (!pages.length) [...objs.values()].filter(o => /\/Type\s*\/Page\b/.test(o.dict)).forEach(o => pages.push({ o, res: o.dict }));
 
-    const out = []; let curXO = {};
+    const out = [], geos = []; let curXO = {};
     for (const pg of pages) {
       const resDict = inlineDict(pg.res, 'Resources') || dictOf(pg.res, 'Resources') || '';
       const fontsDict = dictOf(resDict, 'Font') || '';
@@ -206,7 +206,7 @@ const Extract = (() => {
         (xd.match(/\/([^\s/<>\[\]()]+)\s+(\d+)\s+\d+\s+R/g) || []).forEach(x => { const mm = x.match(/\/([^\s/<>\[\]()]+)\s+(\d+)/); const o = get(mm[2]); if (o && /\/Subtype\s*\/Image/.test(o.dict)) xo[mm[1]] = +mm[2]; });
       }
       curXO = xo;
-      out.push(await pageText(content, fonts));
+      const pt = await pageText(content, fonts); out.push(pt.text); geos.push(pt.geo);
     }
     async function pageText(c, fonts) {
       let font = { map: null, bytes: 1, widths: new Map(), dw: 500 };
@@ -215,7 +215,8 @@ const Extract = (() => {
       let text = '', line = '', lastY = null, lastX = null;
       let ctm = [1, 0, 0, 1, 0, 0]; const gst = [];   // matrice grafica (q/Q/cm): ReportLab posiziona ogni riga con cm
       const mul = (a, b) => [a[0] * b[0] + a[1] * b[2], a[0] * b[1] + a[1] * b[3], a[2] * b[0] + a[3] * b[2], a[2] * b[1] + a[3] * b[3], a[4] * b[0] + a[5] * b[2] + b[4], a[4] * b[1] + a[5] * b[3] + b[5]];
-      const flush = () => { if (line.trim()) text += line.replace(/\s+$/, '') + '\n'; line = ''; };
+      const geo = []; let cells = [], lineFs = 10;   // righe con posizione delle colonne (per le tabelle)
+      const flush = () => { if (line.trim()) { text += line.replace(/\s+$/, '') + '\n'; geo.push({ y: lastY, fs: lineFs, cells: cells.filter(c => c.t.trim()) }); } line = ''; cells = []; };
       const pos = () => [tm[4] * ctm[0] + tm[5] * ctm[2] + ctm[4], tm[4] * ctm[1] + tm[5] * ctm[3] + ctm[5]];
       const show = str => {
         const [x, y] = pos();
@@ -223,9 +224,10 @@ const Extract = (() => {
         if (lastY !== null && Math.abs(y - lastY) > 0.6 * h) flush();
         else if (lastX !== null && line) {
           const sc = Math.abs((tm[0] || 1) * (ctm[0] || 1)) * fs, gap = x - lastX;
-          if (gap > 1.2 * sc) line = line.replace(/[ \t]+$/, '') + '\t';          // colonna diversa (tabelle)
-          else if (!/\s$/.test(line) && gap > 0.18 * sc) line += ' ';
+          if (gap > 0.9 * sc) { line = line.replace(/[ \t]+$/, '') + '\t'; cells.push({ x, e: x, t: '' }); }          // colonna diversa (tabelle)
+          else if (!/\s$/.test(line) && gap > 0.18 * sc) { line += ' '; if (cells.length) cells[cells.length - 1].t += ' '; }
         }
+        if (!cells.length) { cells.push({ x, e: x, t: '' }); lineFs = h; }
         let t = '', adv = 0;
         const step = (code, ch) => { const w = font.widths.has(code) ? font.widths.get(code) : font.approx ? approxW(ch) : font.dw; adv += (w / 1000 * fs + Tc + (code === 32 && font.bytes === 1 ? Tw : 0)) * Tz; t += ch; };
         if (font.bytes === 2) { for (let i = 0; i + 1 < str.length; i += 2) { const code = (str.charCodeAt(i) << 8) | str.charCodeAt(i + 1); step(code, font.map && font.map.has(code) ? font.map.get(code) : ''); } }
@@ -233,6 +235,7 @@ const Extract = (() => {
         line += t;
         tm[4] += adv * tm[0]; tm[5] += adv * tm[1];
         lastX = pos()[0]; lastY = pos()[1];
+        const cc = cells[cells.length - 1]; cc.t += t; cc.e = lastX;
       };
       const kern = n => { const d = -n / 1000 * fs * Tz; tm[4] += d * tm[0]; tm[5] += d * tm[1]; };
       const td = (tx, ty) => { lm = [lm[0], lm[1], lm[2], lm[3], lm[4] + tx * lm[0] + ty * lm[2], lm[5] + tx * lm[1] + ty * lm[3]]; tm = lm.slice(); };
@@ -274,7 +277,7 @@ const Extract = (() => {
         const nums = stack.filter(x => x.num !== undefined).map(x => x.num);
         const n = k => nums[nums.length - k];
         switch (op) {
-          case 'Do': { const nm = stack.filter(x => x.name).pop(); if (nm && curXO[nm.name] !== undefined) { flush(); text += '\u0001IMG' + curXO[nm.name] + '\u0001\n'; lastY = null; } break; }
+          case 'Do': { const nm = stack.filter(x => x.name).pop(); if (nm && curXO[nm.name] !== undefined) { flush(); text += '\u0001IMG' + curXO[nm.name] + '\u0001\n'; geo.push({ img: curXO[nm.name] }); lastY = null; } break; }
           case 'BI': { const e = c.indexOf('EI', i); i = e < 0 ? L : e + 2; break; }
           case 'BT': tm = [1, 0, 0, 1, 0, 0]; lm = tm.slice(); break;
           case 'q': gst.push(ctm.slice()); break;
@@ -298,7 +301,7 @@ const Extract = (() => {
         stack.length = 0;
       }
       flush();
-      return text;
+      return { text, geo };
     }
     const text = out.join('\n\f\n').replace(/[ \t]+\n/g, '\n').replace(/\u0000/g, '');
     if (!opts.images) return { text, pages: pages.length };
@@ -352,7 +355,7 @@ const Extract = (() => {
       const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
       return blob ? { blob, w: W, h: H, ext: 'png' } : null;
     }
-    return { text, pages: pages.length, image };
+    return { text, pages: pages.length, image, geo: geos };
   }
 
   /* =================== ZIP / DOCX =================== */
@@ -504,10 +507,89 @@ const Extract = (() => {
 
   async function pdfStructure(buf) {
     const r = await pdf(buf, { images: true });
-    const pages = r.text.split('\n\f\n').map(pg => pg.split('\n').map(l => l.split('\t').map(c => fixSpaced(c).replace(/\s+/g, ' ').trim()).filter(Boolean).join('\t').replace(/^([•▪◦●■\-–*]|\d+\.(?:\d+\.?)*|\d+(?:\.\d+)+|[a-z]\)|\(?[ivx]+\))\t/, '$1 ')).filter(Boolean));
+    const tables = [];
+    const clean = c => fixSpaced(c).replace(/\s+/g, ' ').trim();
+    const pages = r.geo.map(g => {
+      g = g.filter(o => o.img !== undefined || o.cells.some(c => c.t.trim()));
+      const lines = [];
+      for (let i = 0; i < g.length; i++) {
+        const tb = g[i].cells && g[i].cells.length >= 2 ? tableAt(g, i) : null;
+        if (tb) { lines.length -= i - tb.start; tables.push(tb.rows); lines.push('\u0002TBL' + (tables.length - 1) + '\u0002'); i = tb.end - 1; continue; }
+        const o = g[i];
+        if (o.img !== undefined) { lines.push('\u0001IMG' + o.img + '\u0001'); continue; }
+        lines.push(o.cells.map(c => clean(c.t)).filter(Boolean).join('\t').replace(/^([•▪◦●■\-–*]|\d+\.(?:\d+\.?)*|\d+(?:\.\d+)+|[a-z]\)|\(?[ivx]+\))\t/, '$1 '));
+      }
+      return lines.filter(Boolean);
+    });
+    /** tabella che inizia alla riga i: colonne allineate, celle che non sconfinano nella colonna successiva,
+        nuova riga della tabella quando lo spazio verticale è maggiore dell'interlinea */
+    function tableAt(g, i) {
+      const tol = 4;
+      let cols = g[i].cells.map(c => c.x).sort((a, b) => a - b);
+      const colOf = x => { let k = -1; cols.forEach((cx, q) => { if (x >= cx - tol) k = q; }); return k; };
+      const fits = o => o.cells.every(c => { const k = colOf(c.x); if (k < 0 || (Math.abs(c.x - cols[k]) > tol && o.cells.length < 2)) return false; const nx = cols[k + 1]; return nx === undefined || c.e <= nx + tol; });
+      const isCap = o => o.cells.length === 1 && CAP_RE.test(clean(o.cells[0].t));
+      let end = i + 1, multi = 1, topY = g[i].y, minY = g[i].y;
+      // prima colonna già scritta su più righe prima di questa (ReportLab): la tabella arriva più in basso
+      for (let k = i - 1; k >= 0 && g[k].img === undefined && g[k].cells.length === 1 && !isCap(g[k]) && g[k].y <= topY + tol && g[k].y >= topY - 6 * g[i].fs; k--) minY = Math.min(minY, g[k].y);
+      for (; end < g.length; end++) {
+        const o = g[end];
+        if (o.img !== undefined) break;
+        // ReportLab scrive le celle colonna per colonna: si può risalire, ma non oltre la prima riga
+        if (o.y > topY + tol || o.y < minY - 3.2 * o.fs) break;
+        if (o.cells.length >= 2) {
+          const extra = o.cells.filter(c => !cols.some(cx => Math.abs(cx - c.x) <= tol));
+          if (extra.length && extra.length < o.cells.length) cols = cols.concat(extra.map(c => c.x)).sort((a, b) => a - b);
+          else if (extra.length) break;
+          multi++;
+        } else if (!fits(o)) break;
+        minY = Math.min(minY, o.y);
+      }
+      // righe a una cella subito prima (intestazione su più righe nella prima colonna)
+      let start = i;
+      while (start > 0 && g[start - 1].img === undefined && g[start - 1].cells.length === 1 && !isCap(g[start - 1]) && fits(g[start - 1]) && g[start - 1].y <= topY + 3.2 * g[i].fs && g[start - 1].y >= minY) start--;
+      // intestazione centrata subito sopra (celle non allineate alle colonne dei dati)
+      if (start > 0) {
+        const h = g[start - 1];
+        if (h.img === undefined && h.cells.length >= 2 && h.cells.length <= cols.length && h.y - g[start].y <= 3.2 * h.fs && new Set(h.cells.map(c => colOf(c.x + 2))).size === h.cells.length && !h.cells.some(c => colOf(c.x + 2) < 0)) start--;
+      }
+      const frags = [];
+      for (let k = start; k < end; k++) g[k].cells.forEach(c => { const t = clean(c.t); if (t) frags.push({ q: Math.max(0, colOf(c.x)), y: g[k].y, x: c.x, fs: g[k].fs, t }); });
+      if (multi < 2 && !frags.some(f => f.q > 0)) return null;
+      // righe della tabella: salti verticali più grandi dell'interlinea
+      const ys = [...new Set(frags.map(f => Math.round(f.y * 2) / 2))].sort((a, b) => b - a);
+      const fsAvg = frags.reduce((a, f) => a + f.fs, 0) / (frags.length || 1);
+      const bounds = [ys[0]];
+      for (let k = 1; k < ys.length; k++) if (ys[k - 1] - ys[k] > 1.38 * fsAvg) bounds.push(ys[k]);
+      const rowOf = y => { let r = 0; bounds.forEach((by, q) => { if (y <= by + 0.5) r = q; }); return r; };
+      const put = (row, f) => { row[f.q] = row[f.q] ? (row[f.q].endsWith('-') ? row[f.q].slice(0, -1) + f.t : row[f.q] + ' ' + f.t) : f.t; };
+      let rows;
+      let colMajor = false;
+      for (let k = start + 1; k < end; k++) if (g[k].y > g[k - 1].y + tol) colMajor = true;
+      if (colMajor) {
+        rows = bounds.map(() => cols.map(() => ''));
+        frags.sort((a, b) => b.y - a.y || a.x - b.x).forEach(f => put(rows[rowOf(f.y)], f));
+      } else {
+        // righe scritte una dopo l'altra (Word): ogni riga con più celle è una riga nuova, le righe a una cella continuano la cella sopra
+        rows = []; let row = null, lastY = null;
+        for (let k = start; k < end; k++) {
+          const o = g[k], fr = o.cells.map(c => ({ q: Math.max(0, colOf(c.x)), t: clean(c.t) })).filter(f => f.t);
+          const cont = row && (fr.length === 1 && (fr[0].q > 0 || Math.abs(lastY - o.y) <= 1.38 * o.fs) || (fr.length > 1 && fr.every(f => !row[f.q] || false) && Math.abs(lastY - o.y) <= 1.38 * o.fs && k > start && g[k - 1].cells.length === 1));
+          if (!cont) { row = cols.map(() => ''); rows.push(row); }
+          fr.forEach(f => put(row, f));
+          lastY = o.y;
+        }
+      }
+      const used = cols.map((_, q) => rows.some(r => r[q]));
+      const out = rows.map(r => r.filter((_, q) => used[q])).filter(r => r.some(Boolean));
+      if (out.length < 2 || out[0].length < 2 || (out.length === 2 && out[0].length >= 5)) return null;
+      // elenco puntato/numerato (simbolo + testo rientrato): non è una tabella
+      if (out.every(r => !r[0] || /^([•▪◦●■\-–*➢►✓]|\d{1,2}[.)]|[a-z]\)|\(?[ivx]+\))$/.test(r[0]))) return null;
+      return { rows: out, start, end };
+    }
     // righe ripetute in testa/piede di pagina (intestazione, numero di pagina)
     const edge = {};
-    pages.forEach(ls => { const seen = new Set(); ls.slice(0, 3).concat(ls.slice(-3)).forEach(l => { const k = l.replace(/\d+/g, '#'); if (!seen.has(k)) { seen.add(k); edge[k] = (edge[k] || 0) + 1; } }); });
+    pages.forEach(ls => { const seen = new Set(); ls.slice(0, 3).concat(ls.slice(-3)).filter(l => !/^[\u0001\u0002]/.test(l)).forEach(l => { const k = l.replace(/\d+/g, '#'); if (!seen.has(k)) { seen.add(k); edge[k] = (edge[k] || 0) + 1; } }); });
     const rep = new Set(Object.keys(edge).filter(k => pages.length >= 3 && edge[k] >= Math.max(3, pages.length * 0.4)));
     const imgCount = {};
     pages.forEach(ls => new Set(ls.filter(l => /^\u0001IMG\d+\u0001$/.test(l))).forEach(l => { imgCount[l] = (imgCount[l] || 0) + 1; }));
@@ -523,13 +605,14 @@ const Extract = (() => {
       if (ls.length && dots / ls.length > 0.35) continue; // pagina di indice
       for (let li = 0; li < ls.length; li++) {
         let l = ls[li];
-        // righe con più colonne consecutive → tabella
+        if (/^\u0002TBL\d+\u0002$/.test(l)) { flushP(); els.push({ t: 'table', rows: tables[+l.slice(4, -1)] }); continue; }
+        // righe con più colonne consecutive non riconosciute sopra → tabella semplice
         if (l.includes('\t')) {
           let e = li; while (e < ls.length && ls[e].includes('\t')) e++;
           const rows = ls.slice(li, e).map(x => x.split('\t'));
           const cnt = {}; rows.forEach(x => { cnt[x.length] = (cnt[x.length] || 0) + 1; });
           const mode = +Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a] || b - a)[0];
-          if (e - li >= 2 && mode >= 2 && cnt[mode] >= Math.max(2, rows.length * 0.6)) {
+          if (e - li >= 2 && mode >= 2 && cnt[mode] >= Math.max(2, rows.length * 0.6) && !rows.every(r => /^([•▪◦●■\-–*➢►✓]|\d{1,2}[.)])$/.test(r[0]))) {
             flushP();
             const nc = Math.max(...rows.map(x => x.length));
             els.push({ t: 'table', rows: rows.map(x => x.concat(Array(nc - x.length).fill(''))) });
