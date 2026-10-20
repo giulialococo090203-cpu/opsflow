@@ -303,9 +303,11 @@ Course.D2_SCOPE = /general characteristics|supply chain|value chain|overview of 
 Course.recheck = (onlyIfChanged) => {
   try {
     const P = Store.P;
-    if (!P || !(P.checker.lastRunAt || P.issues.length)) return;            // controlli mai usati: non si avviano da soli
-    if (onlyIfChanged && P.checker.lastRunAt && Date.parse(P.updatedAt) - Date.parse(P.checker.lastRunAt) < 30000) return;   // nulla di nuovo dall'ultimo controllo
-    Checker.run(); App.refresh();
+    if (!P || !(P.checker.lastRunAt || P.report.lastCheckAt || P.issues.length)) return;   // controlli mai usati: non si avviano da soli
+    // si ripetono gli stessi controlli già usati dal team: completi solo se qualcuno li ha lanciati, altrimenti quelli della relazione
+    const full = !!P.checker.lastRunAt, last = full ? P.checker.lastRunAt : P.report.lastCheckAt;
+    if (onlyIfChanged && last && Date.parse(P.updatedAt) - Date.parse(last) < 30000) return;   // nulla di nuovo dall'ultimo controllo
+    Checker.run(full ? {} : { groups: ['relazione'] }); App.refresh();
   } catch (e) { console.error(e); }
 };
 Course.maybeOffer = (orig => function () { setTimeout(() => Course.recheck(true), 2500); return orig.apply(this, arguments); })(Course.maybeOffer);
