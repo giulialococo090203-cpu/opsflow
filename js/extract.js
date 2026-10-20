@@ -1,6 +1,6 @@
 /* =====================================================================
    EXTRACT — lettura del testo dai file caricati, senza librerie esterne
-   - PDF: parser interno (oggetti, object stream, FlateDecode, ToUnicode)
+   - PDF: parser interno (oggetti, object stream, FlateDecode, ASCII85/ASCIIHex, ToUnicode)
    - DOCX: lettura dello zip e di word/document.xml (titoli → "## ")
    - TXT, MD, CSV, TEX, HTML: testo diretto
    Usa DecompressionStream del browser (Chrome/Edge 103+, Safari 16.4+).
@@ -26,6 +26,49 @@ const Extract = (() => {
     return out;
   }
 
+  /* filtri dei flussi PDF diversi da Flate (ReportLab usa ASCII85 + Flate) */
+  function ascii85(u8) {
+    const out = []; let t = 0, n = 0;
+    for (let i = 0; i < u8.length; i++) {
+      const c = u8[i];
+      if (c === 126) break;                       // ~> fine dati
+      if (c <= 32) continue;                      // spazi e a capo
+      if (c === 122 && n === 0) { out.push(0, 0, 0, 0); continue; }   // 'z' = quattro zeri
+      if (c < 33 || c > 117) continue;
+      t = t * 85 + (c - 33); n++;
+      if (n === 5) { out.push((t >>> 24) & 255, (t >>> 16) & 255, (t >>> 8) & 255, t & 255); t = 0; n = 0; }
+    }
+    if (n > 1) { for (let k = n; k < 5; k++) t = t * 85 + 84; for (let k = 0; k < n - 1; k++) out.push((t >>> (24 - 8 * k)) & 255); }
+    return new Uint8Array(out);
+  }
+  function asciiHex(u8) {
+    const out = []; let hi = -1;
+    for (let i = 0; i < u8.length; i++) {
+      const c = u8[i]; if (c === 62) break;       // '>' fine dati
+      const v = c >= 48 && c <= 57 ? c - 48 : c >= 65 && c <= 70 ? c - 55 : c >= 97 && c <= 102 ? c - 87 : -1;
+      if (v < 0) continue;
+      if (hi < 0) hi = v; else { out.push(hi * 16 + v); hi = -1; }
+    }
+    if (hi >= 0) out.push(hi * 16);
+    return new Uint8Array(out);
+  }
+  /** applica in ordine i filtri di testo (ASCII85, ASCIIHex, Flate); si ferma davanti ai filtri immagine */
+  async function unfilter(data, f) {
+    const list = (U.str(f).match(/\/\w+/g) || []).map(x => x.slice(1));
+    let rest = [];
+    for (let k = 0; k < list.length; k++) {
+      const n = list[k];
+      if (n === 'ASCII85Decode' || n === 'A85') data = ascii85(data);
+      else if (n === 'ASCIIHexDecode' || n === 'AHx') data = asciiHex(data);
+      else if (n === 'FlateDecode' || n === 'Fl') data = await inflate(data);
+      else { rest = list.slice(k); break; }
+    }
+    return { data, rest };
+  }
+
+  /* WinAnsi 0x80–0x9F (font standard senza ToUnicode, es. Helvetica di ReportLab) */
+  const WIN = '€\u0000‚ƒ„…†‡ˆ‰Š‹Œ\u0000Ž\u0000\u0000‘’“”•–—˜™š›œ\u0000žŸ'.split('').map(c => c === '\u0000' ? '' : c);
+  const approxW = ch => /[ilj.,;:'!|]/.test(ch) ? 250 : ch === ' ' ? 278 : /[mwMW]/.test(ch) ? 830 : /[A-Z]/.test(ch) ? 667 : /[0-9]/.test(ch) ? 556 : /[ftr]/.test(ch) ? 330 : 520;
   /* =================== PDF =================== */
   async function pdf(buf, opts = {}) {
     const u8 = new Uint8Array(buf);
@@ -58,8 +101,8 @@ const Extract = (() => {
       if (o.decoded) return o.decoded;
       let data = o.stream;
       const f = (o.dict.match(/\/Filter\s*(\[[^\]]*\]|\/\w+)/) || [])[1] || '';
-      if (/FlateDecode/.test(f)) { try { data = await inflate(data); } catch (e) { data = new Uint8Array(0); } }
-      else if (/DCTDecode|JPXDecode|CCITT|JBIG2/.test(f)) data = new Uint8Array(0);
+      if (/DCTDecode|JPXDecode|CCITT|JBIG2/.test(f)) data = new Uint8Array(0);
+      else if (f) { try { const r = await unfilter(data, f); data = r.rest.length ? new Uint8Array(0) : r.data; } catch (e) { data = new Uint8Array(0); } }
       o.decoded = data;
       return data;
     };
@@ -129,6 +172,7 @@ const Extract = (() => {
         const fc = +(fontDict.match(/\/FirstChar\s+(\d+)/) || [0, 0])[1];
         const W = arrOf(fontDict, 'Widths');
         if (W) W.trim().split(/\s+/).forEach((w, q) => info.widths.set(fc + q, +w));
+        else info.approx = true;   // font standard (Helvetica, Times…): larghezze stimate
         info.dw = 500;
       }
       fontCache.set(fontDict, info);
@@ -169,20 +213,26 @@ const Extract = (() => {
       let fs = 10, Tc = 0, Tw = 0, Tz = 1, TL = 0;
       let tm = [1, 0, 0, 1, 0, 0], lm = [1, 0, 0, 1, 0, 0];
       let text = '', line = '', lastY = null, lastX = null;
+      let ctm = [1, 0, 0, 1, 0, 0]; const gst = [];   // matrice grafica (q/Q/cm): ReportLab posiziona ogni riga con cm
+      const mul = (a, b) => [a[0] * b[0] + a[1] * b[2], a[0] * b[1] + a[1] * b[3], a[2] * b[0] + a[3] * b[2], a[2] * b[1] + a[3] * b[3], a[4] * b[0] + a[5] * b[2] + b[4], a[4] * b[1] + a[5] * b[3] + b[5]];
       const flush = () => { if (line.trim()) text += line.replace(/\s+$/, '') + '\n'; line = ''; };
-      const pos = () => [tm[4], tm[5]];
+      const pos = () => [tm[4] * ctm[0] + tm[5] * ctm[2] + ctm[4], tm[4] * ctm[1] + tm[5] * ctm[3] + ctm[5]];
       const show = str => {
         const [x, y] = pos();
-        const h = Math.abs(tm[3]) * fs || fs;
+        const h = Math.abs(tm[3] * (ctm[3] || 1)) * fs || fs;
         if (lastY !== null && Math.abs(y - lastY) > 0.6 * h) flush();
-        else if (lastX !== null && line && !/\s$/.test(line) && x - lastX > 0.18 * Math.abs(tm[0] || 1) * fs) line += ' ';
+        else if (lastX !== null && line) {
+          const sc = Math.abs((tm[0] || 1) * (ctm[0] || 1)) * fs, gap = x - lastX;
+          if (gap > 1.2 * sc) line = line.replace(/[ \t]+$/, '') + '\t';          // colonna diversa (tabelle)
+          else if (!/\s$/.test(line) && gap > 0.18 * sc) line += ' ';
+        }
         let t = '', adv = 0;
-        const step = (code, ch) => { const w = font.widths.has(code) ? font.widths.get(code) : font.dw; adv += (w / 1000 * fs + Tc + (code === 32 && font.bytes === 1 ? Tw : 0)) * Tz; t += ch; };
+        const step = (code, ch) => { const w = font.widths.has(code) ? font.widths.get(code) : font.approx ? approxW(ch) : font.dw; adv += (w / 1000 * fs + Tc + (code === 32 && font.bytes === 1 ? Tw : 0)) * Tz; t += ch; };
         if (font.bytes === 2) { for (let i = 0; i + 1 < str.length; i += 2) { const code = (str.charCodeAt(i) << 8) | str.charCodeAt(i + 1); step(code, font.map && font.map.has(code) ? font.map.get(code) : ''); } }
-        else for (let i = 0; i < str.length; i++) { const code = str.charCodeAt(i); step(code, font.map && font.map.has(code) ? font.map.get(code) : (code === 0x92 ? '’' : code === 0x93 ? '“' : code === 0x94 ? '”' : code === 0x96 ? '–' : str[i])); }
+        else for (let i = 0; i < str.length; i++) { const code = str.charCodeAt(i); step(code, font.map && font.map.has(code) ? font.map.get(code) : (code >= 0x80 && code <= 0x9f && WIN[code - 0x80] ? WIN[code - 0x80] : str[i])); }
         line += t;
         tm[4] += adv * tm[0]; tm[5] += adv * tm[1];
-        lastX = tm[4]; lastY = y;
+        lastX = pos()[0]; lastY = pos()[1];
       };
       const kern = n => { const d = -n / 1000 * fs * Tz; tm[4] += d * tm[0]; tm[5] += d * tm[1]; };
       const td = (tx, ty) => { lm = [lm[0], lm[1], lm[2], lm[3], lm[4] + tx * lm[0] + ty * lm[2], lm[5] + tx * lm[1] + ty * lm[3]]; tm = lm.slice(); };
@@ -227,6 +277,9 @@ const Extract = (() => {
           case 'Do': { const nm = stack.filter(x => x.name).pop(); if (nm && curXO[nm.name] !== undefined) { flush(); text += '\u0001IMG' + curXO[nm.name] + '\u0001\n'; lastY = null; } break; }
           case 'BI': { const e = c.indexOf('EI', i); i = e < 0 ? L : e + 2; break; }
           case 'BT': tm = [1, 0, 0, 1, 0, 0]; lm = tm.slice(); break;
+          case 'q': gst.push(ctm.slice()); break;
+          case 'Q': if (gst.length) ctm = gst.pop(); break;
+          case 'cm': if (nums.length >= 6) ctm = mul(nums.slice(-6), ctm); break;
           case 'Tf': { const nm = stack.filter(x => x.name).pop(); font = await fontInfo(nm ? fonts[nm.name] : null); if (nums.length) fs = n(1) || fs; break; }
           case 'Tc': if (nums.length) Tc = n(1); break;
           case 'Tw': if (nums.length) Tw = n(1); break;
@@ -263,8 +316,10 @@ const Extract = (() => {
       const d = o.dict, W = +(d.match(/\/Width\s+(\d+)/) || [])[1], H = +(d.match(/\/Height\s+(\d+)/) || [])[1];
       if (!W || !H || W * H < 120 * 90 || W < 60 || H < 40 || W * H > 30e6) return null;
       const f = (d.match(/\/Filter\s*(\[[^\]]*\]|\/\w+)/) || [])[1] || '';
-      if (/DCTDecode/.test(f) && !/FlateDecode/.test(f)) return /DeviceCMYK/.test(d) ? null : { blob: new Blob([o.stream.slice()], { type: 'image/jpeg' }), w: W, h: H, ext: 'jpg' };
-      if (!/FlateDecode/.test(f) || /\[\s*\/FlateDecode\s*\/\w+/.test(f)) return null;
+      const pre = await unfilter(o.stream, f.replace(/\/FlateDecode[\s\S]*$/, ''));   // es. ASCII85 prima di Flate/DCT
+      const raw = pre.data;
+      if (/DCTDecode/.test(f) && !/FlateDecode/.test(f)) return /DeviceCMYK/.test(d) ? null : { blob: new Blob([raw.slice()], { type: 'image/jpeg' }), w: W, h: H, ext: 'jpg' };
+      if (!/FlateDecode/.test(f) || /\/FlateDecode\s*\/\w+/.test(f)) return null;
       if (+(d.match(/\/BitsPerComponent\s+(\d+)/) || [0, 8])[1] !== 8) return null;
       let nc = 0;
       const cs = (d.match(/\/ColorSpace\s*(\/\w+|\[[^\]]*\]|\d+\s+\d+\s+R)/) || [])[1] || '';
@@ -272,7 +327,7 @@ const Extract = (() => {
       if (/DeviceRGB|CalRGB/.test(csTxt)) nc = 3; else if (/DeviceGray|CalGray/.test(csTxt)) nc = 1;
       else if (/ICCBased/.test(csTxt)) { const ir = (csTxt.match(/ICCBased\s+(\d+)\s+\d+\s+R/) || [])[1]; const io = ir && get(ir); nc = io ? +(io.dict.match(/\/N\s+(\d)/) || [0, 0])[1] : 0; }
       if (nc !== 1 && nc !== 3) return null;
-      let data = await inflate(o.stream);
+      let data = await inflate(raw);
       const pred = +(d.match(/\/Predictor\s+(\d+)/) || [0, 1])[1];
       const row = W * nc;
       if (pred >= 10) {
@@ -449,7 +504,7 @@ const Extract = (() => {
 
   async function pdfStructure(buf) {
     const r = await pdf(buf, { images: true });
-    const pages = r.text.split('\n\f\n').map(pg => pg.split('\n').map(l => fixSpaced(l).replace(/\s+/g, ' ').trim()).filter(Boolean));
+    const pages = r.text.split('\n\f\n').map(pg => pg.split('\n').map(l => l.split('\t').map(c => fixSpaced(c).replace(/\s+/g, ' ').trim()).filter(Boolean).join('\t').replace(/^([•▪◦●■\-–*]|\d+\.(?:\d+\.?)*|\d+(?:\.\d+)+|[a-z]\)|\(?[ivx]+\))\t/, '$1 ')).filter(Boolean));
     // righe ripetute in testa/piede di pagina (intestazione, numero di pagina)
     const edge = {};
     pages.forEach(ls => { const seen = new Set(); ls.slice(0, 3).concat(ls.slice(-3)).forEach(l => { const k = l.replace(/\d+/g, '#'); if (!seen.has(k)) { seen.add(k); edge[k] = (edge[k] || 0) + 1; } }); });
@@ -466,7 +521,22 @@ const Extract = (() => {
       const ls = pages[pi].filter((l, k, a) => !((k < 3 || k >= a.length - 3) && rep.has(l.replace(/\d+/g, '#'))) && !/^\d{1,3}$/.test(l));
       const dots = ls.filter(l => /\.{5,}|…{3,}|(\. ){4,}/.test(l)).length;
       if (ls.length && dots / ls.length > 0.35) continue; // pagina di indice
-      for (const l of ls) {
+      for (let li = 0; li < ls.length; li++) {
+        let l = ls[li];
+        // righe con più colonne consecutive → tabella
+        if (l.includes('\t')) {
+          let e = li; while (e < ls.length && ls[e].includes('\t')) e++;
+          const rows = ls.slice(li, e).map(x => x.split('\t'));
+          const cnt = {}; rows.forEach(x => { cnt[x.length] = (cnt[x.length] || 0) + 1; });
+          const mode = +Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a] || b - a)[0];
+          if (e - li >= 2 && mode >= 2 && cnt[mode] >= Math.max(2, rows.length * 0.6)) {
+            flushP();
+            const nc = Math.max(...rows.map(x => x.length));
+            els.push({ t: 'table', rows: rows.map(x => x.concat(Array(nc - x.length).fill(''))) });
+            li = e - 1; continue;
+          }
+          l = l.replace(/\t/g, ' ');
+        }
         if (/^\u0001IMG\d+\u0001$/.test(l)) {
           flushP();
           if (imgCount[l] > 2) continue; // logo ripetuto su ogni pagina

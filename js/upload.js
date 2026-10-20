@@ -14,10 +14,11 @@
 'use strict';
 
 const Uploader = (() => {
-  const KINDS = [['phase', 'Lavoro di una fase (PDF/Word) → contenuti della fase e relazione'], ['example', 'Esempio precedente (relazione D4, esercitazione, elaborato)'], ['brief', 'Consegna ufficiale'], ['prof', 'Materiale del professore (slide, email, correzioni)'],
+  const KINDS = [['phase', 'Il nostro lavoro: deliverable D1–D4 o lavoro di una fase (PDF/Word) → contenuti della fase e relazione'], ['example', 'Esempio precedente (relazione D4 di altri anni, esercitazione)'], ['brief', 'Traccia del progetto data dal professore (cosa chiede il corso)'], ['prof', 'Materiale del professore (slide, email, correzioni)'],
     ['report', 'La nostra relazione (bozza D3/D4 da importare)'], ['claude', 'Risposta di Claude'], ['attachment', 'Solo allegato (archivio file)']];
   function guess(file, ex) {
     const n = U.norm(file.name), t = ex.text || '';
+    if (/opsflow|_d[1-4]\b/i.test(file.name) && /\.(pdf|docx)$/i.test(file.name)) return 'phase';
     if (!t) return 'attachment';
     if (/#{1,4}\s*(linea guida|fase|osservazione|domanda)\s*[:\-–]/i.test(t)) return 'claude';
     if (/consegna|assignment|brief|traccia/.test(n)) return 'brief';
@@ -202,7 +203,8 @@ const Uploader = (() => {
     const catOf = { brief: 'Consegna', prof: 'Materiale professore', example: 'Esempio', report: 'Relazione', claude: 'Altro', attachment: 'Altro' };
     const rec = await UI.Files.store(f, { category: catOf[it.kind], description: it.ex.words ? it.ex.words + ' parole lette automaticamente' : '' });
     const fileIds = rec ? [rec.id] : [];
-    if (it.kind === 'attachment' || !text) return { msg: f.name + ' salvato in archivio' };
+    if (!text && it.kind !== 'attachment') { UI.toast('Non riesco a leggere il testo di "' + f.name + '" (forse è una scansione): l\'ho salvato in archivio, ma il contenuto va inserito a mano.', 'err'); return { msg: f.name + ' salvato in archivio' }; }
+    if (it.kind === 'attachment') return { msg: f.name + ' salvato in archivio' };
     if (it.kind === 'brief') {
       const B = P.brief;
       if (B.original && B.original !== text) { B.history.unshift({ text: B.original, savedAt: B.savedAt, replacedAt: U.nowISO(), reason: 'Sostituita caricando ' + f.name }); History.version({ type: 'brief', id: 'brief', label: 'Consegna ufficiale', field: 'testo', before: B.original, after: text, reason: 'Caricata da file ' + f.name, origin: 'PROFESSORE' }); }
